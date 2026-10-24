@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base href="/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="매일 아침 영감의 명언, 감정 일기, 마음 검사, 나만의 일정 플래너, 마음 쉼터 - audistine">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="color-scheme" content="light">
+
+  <style>
+    html, body {
+      background-color: #F8FAFC;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="audistine">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png?v=20261022_1130">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png?v=20261022_1130"/>
+
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <title>audistine</title>
+  <link rel="manifest" href="manifest.json?v=20261022_1130">
+  <script src="push-config.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js" defer></script>
+  <script src="push-bootstrap.js" defer></script>
+</head>
+<body>
+  <script>
+    // 서비스 워커 등록 (백그라운드 알림 및 클릭 이동 핸들러 지원)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js', {
+          scope: '/push-notifications/',
+        }).catch(function(err) {
+          console.warn('[audistine SW] Registration error:', err);
+        });
+      });
+    }
+
+    // 백그라운드 명언 및 일정 알림 워치독 (탭 비활성/최소화 시 보조)
+    (function() {
+      function playChimeSound() {
+        try {
+          var audio = new Audio('sounds/chime.wav');
+          audio.volume = 1.0;
+          var p = audio.play();
+          if (p !== undefined) {
+            p.catch(function() {
+              try {
+                var audioFallback = new Audio('assets/assets/sounds/chime.wav');
+                audioFallback.play().catch(function() {});
+              } catch (e) {}
+            });
+          }
+        } catch (e) {}
+      }
+
+      function showWindowNotification(title, options) {
+        try {
+          var notif = new Notification(title, options);
+          notif.onclick = function(event) {
+            event.preventDefault();
+            window.focus();
+            window.open('https://audistine.web.app', '_blank');
+            notif.close();
+          };
+        } catch (e) {}
+      }
+
+      function checkAndTriggerWebAlarms() {
+        try {
+          if (!('Notification' in window) || Notification.permission !== 'granted') return;
+          var now = new Date();
+          var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+          // 1. 오늘의 명언 알림 체크
+          var audistineEnabled = localStorage.getItem('audistine_notify_enabled') === 'true' || localStorage.getItem('flutter.audistine_daily_notification_enabled') === 'true';
+          if (audistineEnabled) {
+            var aHour = parseInt(localStorage.getItem('audistine_notify_hour') || localStorage.getItem('flutter.notifyHour') || '9', 10);
+            var aMin = parseInt(localStorage.getItem('audistine_notify_minute') || localStorage.getItem('flutter.notifyMinute') || '0', 10);
+            var slotKey = todayStr + '_' + aHour + '_' + aMin;
+            var aLastSlot = localStorage.getItem('audistine_last_daily_slot');
+
+            if (aLastSlot !== slotKey) {
+              var nowMinutes = now.getHours() * 60 + now.getMinutes();
+              var targetMinutes = aHour * 60 + aMin;
+              var diffMin = nowMinutes - targetMinutes;
+              // 설정된 시각이 되었거나 지난 5분 이내라면 오늘 당장 발송!
+              if (diffMin >= 0 && diffMin <= 5) {
+                localStorage.setItem('audistine_last_daily_slot', slotKey);
+                localStorage.setItem('audistine_last_daily_notified_date', todayStr);
+                localStorage.setItem('flutter.audistine_last_daily_notified_date', '"' + todayStr + '"');
+                var quoteBody = localStorage.getItem('audistine_preview_text') || '오늘의 성찰 문장이 도착했습니다. — audistine';
+                fireWebNotification('오늘의 명언이 도착했습니다.', quoteBody, slotKey);
+              }
+            }
+          }
+
+          // 2. 다음 일정 알림 체크
+          var taskAlarmsRaw = localStorage.getItem('audistine_task_alarms');
+          if (taskAlarmsRaw) {
+            try {
+              var taskAlarms = JSON.parse(taskAlarmsRaw);
+              var notifiedTasks = JSON.parse(localStorage.getItem('audistine_notified_task_alarms') || '[]');
+              var nowMs = Date.now();
+              for (var i = 0; i < taskAlarms.length; i++) {
+                var task = taskAlarms[i];
+                var key = task.id + '_' + task.alarmTimeMs;
+                if (notifiedTasks.indexOf(key) === -1) {
+                  var diffSec = (nowMs - task.alarmTimeMs) / 1000;
+                  if (nowMs >= task.alarmTimeMs && diffSec <= 600) {
+                    notifiedTasks.push(key);
+                    localStorage.setItem('audistine_notified_task_alarms', JSON.stringify(notifiedTasks));
+                    var whenLabel = task.alarmMinutesBefore === 0
+                      ? '지금 예정된 일정입니다.'
+                      : task.alarmMinutesBefore + '분 후 예정된 일정입니다 (' + task.time + ').';
+                    fireWebNotification('⏰ audistine 다음 일정 알림', '📌 ' + task.title + '\n' + whenLabel, 'task_' + key);
+                  }
+                }
+              }
+            } catch (te) {}
+          }
+        } catch (e) {}
+      }
+
+      function fireWebNotification(title, body, tagSuffix) {
+        var iconUrl = 'icons/Icon-192.png';
+        playChimeSound();
+        if ('Notification' in window && Notification.permission === 'granted') {
+          var notifOptions = {
+            body: body,
+            icon: iconUrl,
+            badge: iconUrl,
+            vibrate: [200, 100, 200],
+            tag: 'audistine_' + tagSuffix,
+            renotify: false,
+            silent: false,
+            data: { url: 'https://audistine.web.app' }
+          };
+
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then(function(reg) {
+              if (reg && reg.showNotification) {
+                reg.showNotification(title, notifOptions);
+              } else {
+                showWindowNotification(title, notifOptions);
+              }
+            }).catch(function() {
+              showWindowNotification(title, notifOptions);
+            });
+          } else {
+            showWindowNotification(title, notifOptions);
+          }
+        }
+      }
+
+      setInterval(checkAndTriggerWebAlarms, 15000);
+      setTimeout(checkAndTriggerWebAlarms, 2000);
+      window.addEventListener('focus', checkAndTriggerWebAlarms);
+      window.addEventListener('pageshow', checkAndTriggerWebAlarms);
+      document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) checkAndTriggerWebAlarms();
+      });
+    })();
+  </script>
+  <script src="flutter_bootstrap.js?v=20261022_1130" async></script>
+</body>
+</html>

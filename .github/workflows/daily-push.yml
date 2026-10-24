@@ -1,0 +1,54 @@
+name: audistine daily quote push
+
+on:
+  schedule:
+    # Check devices every five minutes; each device's stored local schedule fires only once per day.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only verify configuration; do not send'
+        type: boolean
+        required: true
+        default: true
+      send_test:
+        description: 'Send an immediate test to exactly one registered device'
+        type: boolean
+        required: true
+        default: false
+      test_device_id:
+        description: 'Exact device ID under pushSubscriptions/{uid}/{deviceId}; required for send_test'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audistine-daily-push
+  cancel-in-progress: false
+
+jobs:
+  send-daily-push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install sender dependency
+        run: npm install --prefix scripts --omit=dev --no-audit --no-fund --no-package-lock
+
+      - name: Send due daily quotes or a targeted test
+        run: node scripts/send-daily-push.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          SEND_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.send_test || false }}
+          TEST_DEVICE_ID: ${{ inputs.test_device_id || '' }}

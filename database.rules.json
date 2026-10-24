@@ -1,0 +1,33 @@
+{
+  "rules": {
+    "pushSubscriptions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "$deviceId": {
+          ".validate": "newData.hasChildren(['token', 'enabled', 'hour', 'minute', 'timeZone', 'deviceSeed', 'updatedAt']) && newData.child('token').isString() && newData.child('enabled').isBoolean() && newData.child('hour').isNumber() && newData.child('hour').val() >= 0 && newData.child('hour').val() <= 23 && newData.child('minute').isNumber() && newData.child('minute').val() >= 0 && newData.child('minute').val() <= 59 && newData.child('timeZone').isString() && newData.child('deviceSeed').isNumber() && newData.child('updatedAt').isNumber()"
+        }
+      }
+    },
+    "relay_pins": {
+      "$pin": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "counseling_letters": {
+      ".read": true,
+      ".write": true
+    },
+    "alimtalk_queue": {
+      "$id": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "analytics": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

@@ -1,0 +1,14 @@
+﻿{
+  "projects": {
+    "default": "audistine-hub"
+  },
+  "targets": {
+    "audistine-hub": {
+      "hosting": {
+        "audistine": [
+          "audistine"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "audistine-daily-push-sender",
+  "private": true,
+  "description": "GitHub Actions FCM sender for audistine web push subscriptions",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}
