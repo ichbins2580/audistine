@@ -45,10 +45,26 @@ jobs:
       - name: Install sender dependency
         run: npm install --prefix scripts --omit=dev --no-audit --no-fund --no-package-lock
 
+      - name: Write Firebase credential file
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          credential_file="$RUNNER_TEMP/audistine-firebase-service-account.json"
+          umask 077
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credential_file"
+          chmod 600 "$credential_file"
+          printf 'FIREBASE_SERVICE_ACCOUNT_FILE=%s\n' "$credential_file" >> "$GITHUB_ENV"
+
       - name: Send due daily quotes or a targeted test
         run: node scripts/send-daily-push.js
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
           SEND_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.send_test || false }}
           TEST_DEVICE_ID: ${{ inputs.test_device_id || '' }}
+
+      - name: Remove Firebase credential file
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/audistine-firebase-service-account.json"

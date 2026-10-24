@@ -18,12 +18,26 @@ const LATE_WINDOW_MINUTES = 24 * 60;
 const MAX_PARALLEL_SENDS = 20;
 
 function loadServiceAccount() {
-  const serialized = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!serialized) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT is not configured.');
+  const credentialFile = process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  let serialized;
+  if (credentialFile) {
+    serialized = fs.readFileSync(credentialFile, 'utf8');
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    // Local fallback; Actions writes the multiline secret to a protected temp file.
+    serialized = process.env.FIREBASE_SERVICE_ACCOUNT;
+  } else {
+    throw new Error('Firebase service-account credential file is not configured.');
   }
 
-  const account = JSON.parse(serialized);
+  // Accept a UTF-8 BOM from files saved by some editors without logging the secret.
+  const normalized = serialized.replace(/^\uFEFF/, '').trim();
+  let account;
+  try {
+    account = JSON.parse(normalized);
+  } catch (_) {
+    throw new Error('Firebase service-account credential is not valid JSON. Verify the GitHub secret contains the complete JSON file.');
+  }
   if (account.project_id !== PROJECT_ID || !account.client_email || !account.private_key) {
     throw new Error(`The service account must belong to Firebase project ${PROJECT_ID}.`);
   }
