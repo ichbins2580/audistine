@@ -45,16 +45,21 @@ jobs:
       - name: Install sender dependency
         run: npm install --prefix scripts --omit=dev --no-audit --no-fund --no-package-lock
 
-      - name: Write Firebase credential file
+      - name: Decode Firebase credential file
         shell: bash
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
           credential_file="$RUNNER_TEMP/audistine-firebase-service-account.json"
+          if [[ -z "$FIREBASE_SERVICE_ACCOUNT_B64" ]]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret is empty. Store the base64-encoded service-account JSON in that secret." >&2
+            exit 1
+          fi
           umask 077
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$credential_file"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_B64" | base64 --decode > "$credential_file"
           chmod 600 "$credential_file"
+          node -e "JSON.parse(require('node:fs').readFileSync(process.argv[1], 'utf8'))" "$credential_file"
           printf 'FIREBASE_SERVICE_ACCOUNT_FILE=%s\n' "$credential_file" >> "$GITHUB_ENV"
 
       - name: Send due daily quotes or a targeted test

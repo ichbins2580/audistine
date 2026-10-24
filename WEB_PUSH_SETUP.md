@@ -5,7 +5,7 @@ The sender reads `pushSubscriptions/{anonymousUid}/{deviceId}` using Firebase Ad
 ## GitHub repository setup
 
 1. Ensure the repository's **Actions** feature and workflow permissions are enabled.
-2. Add an Actions repository secret named exactly `FIREBASE_SERVICE_ACCOUNT`. Its value is the complete JSON for a Firebase service account in project `audistine-hub`. Grant that account only the permissions needed to read/update Realtime Database push registrations and send FCM messages (for example, appropriate Firebase Realtime Database and Firebase Cloud Messaging roles). Do not commit or print the credential file. If an account key has been exposed, revoke it and create a replacement before using this workflow.
+2. Add an Actions repository secret named exactly `FIREBASE_SERVICE_ACCOUNT`. Its value must be the **single-line Base64 encoding of the complete JSON** for a Firebase service account in project `audistine-hub` (not raw JSON). The workflow decodes it into a permission-restricted temporary file, validates the JSON, and removes the file after the job. Grant that account only the permissions needed to read/update Realtime Database push registrations and send FCM messages (for example, appropriate Firebase Realtime Database and Firebase Cloud Messaging roles). Do not commit, print, or upload the credential file. If an account key has been exposed, revoke it and create a replacement before using this workflow.
 3. Commit and push `.github/workflows/daily-push.yml`, `scripts/send-daily-push.js`, and `scripts/package.json` to the repository's default branch.
 4. From the GitHub **Actions** tab, run **audistine daily quote push** manually with `dry_run` left checked to verify the workflow without sending.
 
@@ -24,3 +24,5 @@ For a real test at any time, manually run the workflow with:
 - `test_device_id`: the exact device-ID key under `pushSubscriptions/{anonymousUid}/{deviceId}`
 
 The test mode is restricted to this single device ID and does not change its `lastSentDate`. Leaving `dry_run` checked sends nothing. A blank or unknown device ID fails instead of broadcasting to all subscribers. Do not paste service-account JSON or FCM tokens into workflow inputs or logs.
+
+The sender loads credentials only from the decoded temporary JSON file and validates the Firebase project before accessing the database. The encoded secret is supplied only to the decode step, not checkout or dependency installation.

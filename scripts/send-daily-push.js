@@ -20,16 +20,11 @@ const MAX_PARALLEL_SENDS = 20;
 function loadServiceAccount() {
   const credentialFile = process.env.FIREBASE_SERVICE_ACCOUNT_FILE ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  let serialized;
-  if (credentialFile) {
-    serialized = fs.readFileSync(credentialFile, 'utf8');
-  } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    // Local fallback; Actions writes the multiline secret to a protected temp file.
-    serialized = process.env.FIREBASE_SERVICE_ACCOUNT;
-  } else {
+  if (!credentialFile) {
     throw new Error('Firebase service-account credential file is not configured.');
   }
 
+  const serialized = fs.readFileSync(credentialFile, 'utf8');
   // Accept a UTF-8 BOM from files saved by some editors without logging the secret.
   const normalized = serialized.replace(/^\uFEFF/, '').trim();
   let account;
